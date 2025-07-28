@@ -11,6 +11,7 @@ using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Soenneker.Extensions.IQueryables;
@@ -152,35 +153,64 @@ public static class IQueryablesExtension
         return query;
     }
 
-    private static MemberExpression BuildMemberAccess<T>(ParameterExpression root, string fieldPath)
+    private static MemberExpression BuildMemberAccess<T>(ParameterExpression root, string path)
     {
-        ValidateFieldPath(fieldPath);
+        ValidateFieldPath(path);
 
-        PropertyInfo[] chain = _propertyChainCache.GetOrAdd((typeof(T), fieldPath), static key =>
+        PropertyInfo[] chain = _propertyChainCache.GetOrAdd((typeof(T), path), static key =>
         {
-            (Type type, string path) = key;
-            string[] segments = path.Split('.');
-            var list = new List<PropertyInfo>(segments.Length);
-            Type current = type;
+            (Type type, string dotted) = key;
 
-            foreach (string segment in segments)
+            Type current = type;
+            var props = new List<PropertyInfo>();
+
+            foreach (string segment in dotted.Split('.'))
             {
-                PropertyInfo prop = current.GetProperty(segment, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase) ??
-                                    throw new ArgumentException($"Field \"{path}\" does not exist on type {type.Name}");
-                list.Add(prop);
+                PropertyInfo prop = FindProperty(current, segment);
+
+                if (prop is null)
+                    throw new ArgumentException($"Field \"{dotted}\" does not exist on type {type.Name}");
+
+                props.Add(prop);
                 current = prop.PropertyType;
             }
 
-            return list.ToArray();
+            return props.ToArray();
         });
 
-        Expression currentExpr = root;
-        
-        foreach (PropertyInfo prop in chain)
+        Expression e = root;
+
+        foreach (PropertyInfo p in chain)
         {
-            currentExpr = Expression.Property(currentExpr, prop);
+            e = Expression.Property(e, p);
         }
-        return (MemberExpression) currentExpr;
+
+        return (MemberExpression) e;
+    }
+
+    /// <summary>
+    /// Prefers JsonPropertyNameAttribute, then falls back to CLR property name.
+    /// </summary>
+    /// <param name="type"></param>
+    /// <param name="seg"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
+    private static PropertyInfo FindProperty(Type type, string seg)
+    {
+        PropertyInfo? matchByJson = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                                        .FirstOrDefault(p =>
+                                            p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                                             .Equals(seg, StringComparison.OrdinalIgnoreCase) == true);
+
+        if (matchByJson is not null)
+            return matchByJson;
+
+        PropertyInfo? matchByClr = type.GetProperty(seg, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+
+        if (matchByClr is not null)
+            return matchByClr;
+
+        throw new ArgumentException($"Field \"{seg}\" does not exist on type {type.Name}");
     }
 
     private static void ValidateFieldPath(string fieldPath)
