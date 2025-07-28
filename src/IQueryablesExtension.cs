@@ -7,6 +7,7 @@ using Soenneker.Extensions.String;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -34,6 +35,7 @@ public static class IQueryablesExtension
 
     private static readonly MethodInfo _stringContains = typeof(string).GetMethod(nameof(string.Contains), [typeof(string)])!;
 
+    [Pure]
     public static IQueryable<T> WhereDynamicEquals<T>(this IQueryable<T> source, string field, object? value)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -43,18 +45,12 @@ public static class IQueryablesExtension
         return source.Where(Expression.Lambda<Func<T, bool>>(body, param));
     }
 
+    [Pure]
     public static IQueryable<T> WhereDynamicRange<T>(this IQueryable<T> source, RangeFilter range)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
         MemberExpression member = BuildMemberAccess<T>(param, range.Field);
         Expression? body = null;
-
-        void Add(object? v, Func<Expression, Expression, BinaryExpression> op)
-        {
-            if (v is null) return;
-            UnaryExpression c = Expression.Convert(Expression.Constant(v), member.Type);
-            body = body is null ? op(member, c) : Expression.AndAlso(body, op(member, c));
-        }
 
         Add(range.GreaterThan, Expression.GreaterThan);
         Add(range.GreaterThanOrEqual, Expression.GreaterThanOrEqual);
@@ -62,8 +58,16 @@ public static class IQueryablesExtension
         Add(range.LessThanOrEqual, Expression.LessThanOrEqual);
 
         return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
+
+        void Add(object? v, Func<Expression, Expression, BinaryExpression> op)
+        {
+            if (v is null) return;
+            UnaryExpression c = Expression.Convert(Expression.Constant(v), member.Type);
+            body = body is null ? op(member, c) : Expression.AndAlso(body, op(member, c));
+        }
     }
 
+    [Pure]
     public static IQueryable<T> WhereDynamicSearch<T>(this IQueryable<T> source, string search, List<string> fields)
     {
         if (string.IsNullOrWhiteSpace(search) || fields.Count == 0)
@@ -84,6 +88,7 @@ public static class IQueryablesExtension
         return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
     }
 
+    [Pure]
     public static IOrderedQueryable<T> OrderByDynamic<T>(this IQueryable<T> source, string field, bool descending)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -93,6 +98,7 @@ public static class IQueryablesExtension
         return (IOrderedQueryable<T>) method.Invoke(null, [source, lambda])!;
     }
 
+    [Pure]
     public static IOrderedQueryable<T> ThenByDynamic<T>(this IOrderedQueryable<T> source, string field, bool descending)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -102,6 +108,7 @@ public static class IQueryablesExtension
         return (IOrderedQueryable<T>) method.Invoke(null, [source, lambda])!;
     }
 
+    [Pure]
     public static IQueryable<T> AddRequestDataOptions<T>(this IQueryable<T> query, RequestDataOptions opts)
     {
         if (opts.Filters?.Count > 0)
