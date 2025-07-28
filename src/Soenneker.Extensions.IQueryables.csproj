@@ -45,6 +45,5 @@
       <PackageReference Include="Soenneker.Dtos.RequestDataOptions" Version="3.0.31" />
       <PackageReference Include="Soenneker.Extensions.Char" Version="3.0.74" />
       <PackageReference Include="Soenneker.Extensions.String" Version="3.0.539" />
-      <PackageReference Include="System.Linq.Dynamic.Core" Version="1.6.7" />
     </ItemGroup>
 </Project>
