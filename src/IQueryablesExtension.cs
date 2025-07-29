@@ -56,19 +56,19 @@ public static class IQueryablesExtension
         MemberExpression member = BuildMemberAccess<T>(param, range.Field);
         Expression? body = null;
 
-        void Add(object? v, Func<Expression, Expression, BinaryExpression> op)
-        {
-            if (v is null) return;
-            UnaryExpression c = Expression.Convert(Expression.Constant(v), member.Type);
-            body = body is null ? op(member, c) : Expression.AndAlso(body, op(member, c));
-        }
-
         Add(range.GreaterThan, Expression.GreaterThan);
         Add(range.GreaterThanOrEqual, Expression.GreaterThanOrEqual);
         Add(range.LessThan, Expression.LessThan);
         Add(range.LessThanOrEqual, Expression.LessThanOrEqual);
 
         return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
+
+        void Add(object? v, Func<Expression, Expression, BinaryExpression> op)
+        {
+            if (v is null) return;
+            UnaryExpression c = Expression.Convert(Expression.Constant(v), member.Type);
+            body = body is null ? op(member, c) : Expression.AndAlso(body, op(member, c));
+        }
     }
 
     [Pure]
