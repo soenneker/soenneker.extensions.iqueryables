@@ -13,6 +13,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Soenneker.Attributes.MapTo;
 
 namespace Soenneker.Extensions.IQueryables;
 
@@ -20,6 +21,8 @@ namespace Soenneker.Extensions.IQueryables;
 public static class IQueryablesExtension
 {
     private static readonly Regex _fieldPattern = new(@"^[A-Za-z0-9_\.]+$", RegexOptions.Compiled);
+
+    /// <summary> (root-type, full path) → property chain </summary>
     private static readonly ConcurrentDictionary<(Type, string), PropertyInfo[]> _propertyChainCache = new();
 
     private static readonly MethodInfo _orderBy =
@@ -53,19 +56,19 @@ public static class IQueryablesExtension
         MemberExpression member = BuildMemberAccess<T>(param, range.Field);
         Expression? body = null;
 
-        Add(range.GreaterThan, Expression.GreaterThan);
-        Add(range.GreaterThanOrEqual, Expression.GreaterThanOrEqual);
-        Add(range.LessThan, Expression.LessThan);
-        Add(range.LessThanOrEqual, Expression.LessThanOrEqual);
-
-        return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
-
         void Add(object? v, Func<Expression, Expression, BinaryExpression> op)
         {
             if (v is null) return;
             UnaryExpression c = Expression.Convert(Expression.Constant(v), member.Type);
             body = body is null ? op(member, c) : Expression.AndAlso(body, op(member, c));
         }
+
+        Add(range.GreaterThan, Expression.GreaterThan);
+        Add(range.GreaterThanOrEqual, Expression.GreaterThanOrEqual);
+        Add(range.LessThan, Expression.LessThan);
+        Add(range.LessThanOrEqual, Expression.LessThanOrEqual);
+
+        return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
     }
 
     [Pure]
@@ -109,10 +112,13 @@ public static class IQueryablesExtension
         return (IOrderedQueryable<T>) method.Invoke(null, [source, lambda])!;
     }
 
+    /// <summary>
+    /// Applies filters, search, ordering, paging in one go.
+    /// </summary>
     [Pure]
     public static IQueryable<T> AddRequestDataOptions<T>(this IQueryable<T> query, RequestDataOptions opts)
     {
-        if (opts.Filters?.Count > 0)
+        if (opts.Filters is {Count: > 0})
         {
             foreach (ExactMatchFilter f in opts.Filters)
             {
@@ -120,7 +126,7 @@ public static class IQueryablesExtension
             }
         }
 
-        if (opts.RangeFilters?.Count > 0)
+        if (opts.RangeFilters is {Count: > 0})
         {
             foreach (RangeFilter r in opts.RangeFilters)
             {
@@ -128,13 +134,12 @@ public static class IQueryablesExtension
             }
         }
 
-        if (opts.Search.HasContent() && opts.SearchFields?.Count > 0)
+        if (opts.Search.HasContent() && opts.SearchFields is {Count: > 0})
             query = query.WhereDynamicSearch(opts.Search, opts.SearchFields);
 
-        if (opts.OrderBy?.Count > 0)
+        if (opts.OrderBy is {Count: > 0})
         {
-            var first = true;
-
+            bool first = true;
             foreach (OrderByOption o in opts.OrderBy)
             {
                 query = first
@@ -144,13 +149,20 @@ public static class IQueryablesExtension
             }
         }
 
-        if (opts.Skip is > 0)
+        if (opts.Skip is > 0) 
             query = query.Skip(opts.Skip.Value);
 
-        if (opts.Take is > 0)
+        if (opts.Take is > 0) 
             query = query.Take(opts.Take.Value);
 
         return query;
+    }
+
+    /// <summary> Splits once on '.', returns (head, tailOrNull). </summary>
+    private static (string head, string? tail) SplitFirst(string dotted)
+    {
+        int idx = dotted.IndexOf('.');
+        return idx < 0 ? (dotted, null) : (dotted[..idx], dotted[(idx + 1)..]);
     }
 
     private static MemberExpression BuildMemberAccess<T>(ParameterExpression root, string path)
@@ -159,58 +171,70 @@ public static class IQueryablesExtension
 
         PropertyInfo[] chain = _propertyChainCache.GetOrAdd((typeof(T), path), static key =>
         {
-            (Type type, string dotted) = key;
-
-            Type current = type;
+            (Type current, string remaining) = key;
             var props = new List<PropertyInfo>();
 
-            foreach (string segment in dotted.Split('.'))
+            while (true)
             {
-                PropertyInfo prop = FindProperty(current, segment);
+                // exact remainder match on MapTo (handles flattened-dot case gracefully)
+                PropertyInfo? exact = current.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                                             .FirstOrDefault(p => string.Equals(p.GetCustomAttribute<MapToAttribute>()?.Path, remaining,
+                                                 StringComparison.OrdinalIgnoreCase));
+                if (exact is not null)
+                {
+                    props.Add(exact);
+                    break; // remainder consumed
+                }
 
-                if (prop is null)
-                    throw new ArgumentException($"Field \"{dotted}\" does not exist on type {type.Name}");
+                (string seg, string? tail) = SplitFirst(remaining);
 
-                props.Add(prop);
-                current = prop.PropertyType;
+                PropertyInfo? match = FindSegmentProperty(current, seg);
+
+                if (match is null)
+                    throw new ArgumentException($"Field \"{seg}\" does not exist on type {current.Name}");
+
+                props.Add(match);
+                current = match.PropertyType;
+
+                if (tail is null)
+                    break; // reached leaf
+
+                remaining = tail;
             }
 
             return props.ToArray();
         });
 
-        Expression e = root;
+        Expression expr = root;
 
         foreach (PropertyInfo p in chain)
         {
-            e = Expression.Property(e, p);
+            expr = Expression.Property(expr, p);
         }
 
-        return (MemberExpression) e;
+        return (MemberExpression) expr;
     }
 
-    /// <summary>
-    /// Prefers JsonPropertyNameAttribute, then falls back to CLR property name.
-    /// </summary>
-    /// <param name="type"></param>
-    /// <param name="seg"></param>
-    /// <returns></returns>
-    /// <exception cref="ArgumentException"></exception>
-    private static PropertyInfo FindProperty(Type type, string seg)
+    /// <summary> Resolve ONE path segment on <paramref name="type"/>. </summary>
+    private static PropertyInfo? FindSegmentProperty(Type type, string seg)
     {
-        PropertyInfo? matchByJson = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+        // 1. MapTo segment match (prefix)
+        PropertyInfo? byMapPrefix = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                                         .FirstOrDefault(p =>
-                                            p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
-                                             .Equals(seg, StringComparison.OrdinalIgnoreCase) == true);
+                                        {
+                                            string? map = p.GetCustomAttribute<MapToAttribute>()?.Path;
+                                            return map is not null && string.Equals(SplitFirst(map).head, seg, StringComparison.OrdinalIgnoreCase);
+                                        });
+        if (byMapPrefix is not null) return byMapPrefix;
 
-        if (matchByJson is not null)
-            return matchByJson;
+        // 2. JsonPropertyName (single token)
+        PropertyInfo? byJson = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                                   .FirstOrDefault(p =>
+                                       string.Equals(p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name, seg, StringComparison.OrdinalIgnoreCase));
+        if (byJson is not null) return byJson;
 
-        PropertyInfo? matchByClr = type.GetProperty(seg, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
-
-        if (matchByClr is not null)
-            return matchByClr;
-
-        throw new ArgumentException($"Field \"{seg}\" does not exist on type {type.Name}");
+        // 3. CLR name
+        return type.GetProperty(seg, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
     }
 
     private static void ValidateFieldPath(string fieldPath)
