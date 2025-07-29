@@ -13,7 +13,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Soenneker.Attributes.MapTo;
 
 namespace Soenneker.Extensions.IQueryables;
 
@@ -176,16 +175,6 @@ public static class IQueryablesExtension
 
             while (true)
             {
-                // exact remainder match on MapTo (handles flattened-dot case gracefully)
-                PropertyInfo? exact = current.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                                             .FirstOrDefault(p => string.Equals(p.GetCustomAttribute<MapToAttribute>()?.Path, remaining,
-                                                 StringComparison.OrdinalIgnoreCase));
-                if (exact is not null)
-                {
-                    props.Add(exact);
-                    break; // remainder consumed
-                }
-
                 (string seg, string? tail) = SplitFirst(remaining);
 
                 PropertyInfo? match = FindSegmentProperty(current, seg);
@@ -218,15 +207,6 @@ public static class IQueryablesExtension
     /// <summary> Resolve ONE path segment on <paramref name="type"/>. </summary>
     private static PropertyInfo? FindSegmentProperty(Type type, string seg)
     {
-        // 1. MapTo segment match (prefix)
-        PropertyInfo? byMapPrefix = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                                        .FirstOrDefault(p =>
-                                        {
-                                            string? map = p.GetCustomAttribute<MapToAttribute>()?.Path;
-                                            return map is not null && string.Equals(SplitFirst(map).head, seg, StringComparison.OrdinalIgnoreCase);
-                                        });
-        if (byMapPrefix is not null) return byMapPrefix;
-
         // 2. JsonPropertyName (single token)
         PropertyInfo? byJson = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                                    .FirstOrDefault(p =>
