@@ -148,12 +148,6 @@ public static class IQueryablesExtension
             }
         }
 
-        if (opts.Skip is > 0) 
-            query = query.Skip(opts.Skip.Value);
-
-        if (opts.Take is > 0) 
-            query = query.Take(opts.Take.Value);
-
         return query;
     }
 
