@@ -198,7 +198,7 @@ public static class IQueryablesExtension
         return (MemberExpression) expr;
     }
 
-    /// <summary> Resolve ONE path segment on <paramref name="type"/>. </summary>
+    /// <summary> Resolve ONE path segment on <paramref name="type"/>.  </summary>
     private static PropertyInfo? FindSegmentProperty(Type type, string seg)
     {
         // 2. JsonPropertyName (single token)
