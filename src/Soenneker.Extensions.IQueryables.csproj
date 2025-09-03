@@ -42,7 +42,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Soenneker.Dtos.RequestDataOptions" Version="3.0.41" />
+      <PackageReference Include="Soenneker.Dtos.RequestDataOptions" Version="3.0.44" />
       <PackageReference Include="Soenneker.Extensions.Char" Version="3.0.76" />
       <PackageReference Include="Soenneker.Extensions.String" Version="3.0.549" />
     </ItemGroup>
