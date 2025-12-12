@@ -1,4 +1,4 @@
-﻿using Soenneker.Dtos.Filters.ExactMatch;
+using Soenneker.Dtos.Filters.ExactMatch;
 using Soenneker.Dtos.Filters.Range;
 using Soenneker.Dtos.Options.OrderBy;
 using Soenneker.Dtos.RequestDataOptions;
@@ -183,25 +183,32 @@ public static class IQueryablesExtension
     {
         ValidateFieldPath(path);
 
-        PropertyInfo[] chain = _propertyChainCache.GetOrAdd((typeof(T), path), static key =>
-        {
-            (Type current, string remaining) = key;
-            var props = new List<PropertyInfo>(4); // small default; grows if needed
-
-            while (true)
+            PropertyInfo[] chain = _propertyChainCache.GetOrAdd((typeof(T), path), static key =>
             {
-                (string seg, string? tail) = SplitFirst(remaining);
-                PropertyInfo match = FindSegmentProperty(current, seg) ?? throw new ArgumentException($"Field \"{seg}\" does not exist on type {current.Name}");
+                (Type current, string remaining) = key;
+                var props = new List<PropertyInfo>(4); // small default; grows if needed
 
-                props.Add(match);
-                current = match.PropertyType;
+                while (true)
+                {
+                    (string seg, string? tail) = SplitFirst(remaining);
+                    PropertyInfo match = FindSegmentProperty(current, seg) ?? throw new ArgumentException($"Field \"{seg}\" does not exist on type {current.Name}");
 
-                if (tail is null) break;
-                remaining = tail;
-            }
+                    props.Add(match);
+                    current = match.PropertyType;
 
-            return props.ToArray();
-        });
+                    if (tail is null) break;
+                    remaining = tail;
+                }
+
+                // Create array directly from list to avoid intermediate ToArray allocation
+                int count = props.Count;
+                PropertyInfo[] result = new PropertyInfo[count];
+                for (var i = 0; i < count; i++)
+                {
+                    result[i] = props[i];
+                }
+                return result;
+            });
 
         Expression expr = root;
 
