@@ -1,12 +1,11 @@
-﻿using Soenneker.Tests.Unit;
-using Xunit;
+using Soenneker.Tests.Unit;
 
 namespace Soenneker.Extensions.IQueryables.Tests;
 
 // ReSharper disable once InconsistentNaming
 public sealed class IQueryablesExtensionTests : UnitTest
 {
-    [Fact]
+    [Test]
     public void Default()
     {
 
