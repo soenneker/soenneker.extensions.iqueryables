@@ -21,6 +21,9 @@ namespace Soenneker.Extensions.IQueryables;
 /// </summary>
 // ReSharper disable once UnusedType.Global
 // ReSharper disable once InconsistentNaming
+/// <summary>
+/// Represents the i queryables extension.
+/// </summary>
 public static class IQueryablesExtension
 {
     /// <summary> (root-type, full path) → property chain </summary>
@@ -37,6 +40,14 @@ public static class IQueryablesExtension
     private static readonly MethodInfo _stringContains =
         typeof(string).GetMethod(nameof(string.Contains), new[] { typeof(string) })!;
 
+    /// <summary>
+    /// Executes the where dynamic equals operation.
+    /// </summary>
+    /// <typeparam name="T">The T type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="field">The field.</param>
+    /// <param name="value">The value.</param>
+    /// <returns>The result of the operation.</returns>
     [Pure]
     public static IQueryable<T> WhereDynamicEquals<T>(this IQueryable<T> source, string field, object? value)
     {
@@ -45,6 +56,13 @@ public static class IQueryablesExtension
         return source.Where(Expression.Lambda<Func<T, bool>>(body, param));
     }
 
+    /// <summary>
+    /// Executes the where dynamic range operation.
+    /// </summary>
+    /// <typeparam name="T">The T type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="range">The range.</param>
+    /// <returns>The result of the operation.</returns>
     [Pure]
     public static IQueryable<T> WhereDynamicRange<T>(this IQueryable<T> source, RangeFilter range)
     {
@@ -53,6 +71,14 @@ public static class IQueryablesExtension
         return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
     }
 
+    /// <summary>
+    /// Executes the where dynamic search operation.
+    /// </summary>
+    /// <typeparam name="T">The T type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="search">The search.</param>
+    /// <param name="fields">The fields.</param>
+    /// <returns>The result of the operation.</returns>
     [Pure]
     public static IQueryable<T> WhereDynamicSearch<T>(this IQueryable<T> source, string search, List<string> fields)
     {
@@ -64,6 +90,14 @@ public static class IQueryablesExtension
         return body is null ? source : source.Where(Expression.Lambda<Func<T, bool>>(body, param));
     }
 
+    /// <summary>
+    /// Executes the order by dynamic operation.
+    /// </summary>
+    /// <typeparam name="T">The T type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="field">The field.</param>
+    /// <param name="descending">The descending.</param>
+    /// <returns>The result of the operation.</returns>
     [Pure]
     public static IOrderedQueryable<T> OrderByDynamic<T>(this IQueryable<T> source, string field, bool descending)
     {
@@ -76,6 +110,14 @@ public static class IQueryablesExtension
         return (IOrderedQueryable<T>)source.Provider.CreateQuery(call);
     }
 
+    /// <summary>
+    /// Executes the then by dynamic operation.
+    /// </summary>
+    /// <typeparam name="T">The T type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="field">The field.</param>
+    /// <param name="descending">The descending.</param>
+    /// <returns>The result of the operation.</returns>
     [Pure]
     public static IOrderedQueryable<T> ThenByDynamic<T>(this IOrderedQueryable<T> source, string field, bool descending)
     {
