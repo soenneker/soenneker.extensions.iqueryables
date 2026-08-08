@@ -26,6 +26,7 @@ namespace Soenneker.Extensions.IQueryables;
 /// </summary>
 public static class IQueryablesExtension
 {
+    private const int _propertyChainCacheCapacity = 1024;
     /// <summary> (root-type, full path) → property chain </summary>
     private static readonly ConcurrentDictionary<(Type, string), PropertyInfo[]> _propertyChainCache = new();
 
@@ -275,36 +276,13 @@ public static class IQueryablesExtension
     {
         ValidateFieldPath(path);
 
-        PropertyInfo[] chain = _propertyChainCache.GetOrAdd((typeof(T), path), static key =>
+        var cacheKey = (typeof(T), path);
+        if (!_propertyChainCache.TryGetValue(cacheKey, out PropertyInfo[]? chain))
         {
-            (Type current, string remaining) = key;
-
-            // Avoid LINQ; small list size expected
-            var props = new List<PropertyInfo>(4);
-
-            while (true)
-            {
-                (string seg, string? tail) = SplitFirst(remaining);
-
-                PropertyInfo match = FindSegmentProperty(current, seg)
-                                     ?? throw new ArgumentException($"Field \"{seg}\" does not exist on type {current.Name}");
-
-                props.Add(match);
-                current = match.PropertyType;
-
-                if (tail is null)
-                    break;
-
-                remaining = tail;
-            }
-
-            int count = props.Count;
-            var result = new PropertyInfo[count];
-            for (int i = 0; i < count; i++)
-                result[i] = props[i];
-
-            return result;
-        });
+            chain = ResolvePropertyChain(cacheKey.Item1, cacheKey.Item2);
+            if (_propertyChainCache.Count < _propertyChainCacheCapacity)
+                chain = _propertyChainCache.GetOrAdd(cacheKey, chain);
+        }
 
         Expression expr = root;
 
@@ -312,6 +290,35 @@ public static class IQueryablesExtension
             expr = Expression.Property(expr, chain[i]);
 
         return (MemberExpression)expr;
+    }
+
+    private static PropertyInfo[] ResolvePropertyChain(Type current, string remaining)
+    {
+        // Avoid LINQ; small list size expected
+        var props = new List<PropertyInfo>(4);
+
+        while (true)
+        {
+            (string seg, string? tail) = SplitFirst(remaining);
+
+            PropertyInfo match = FindSegmentProperty(current, seg)
+                                 ?? throw new ArgumentException($"Field \"{seg}\" does not exist on type {current.Name}");
+
+            props.Add(match);
+            current = match.PropertyType;
+
+            if (tail is null)
+                break;
+
+            remaining = tail;
+        }
+
+        int count = props.Count;
+        var result = new PropertyInfo[count];
+        for (int i = 0; i < count; i++)
+            result[i] = props[i];
+
+        return result;
     }
 
     /// <summary> Resolve ONE path segment on <paramref name="type"/> using the cached property map. </summary>
