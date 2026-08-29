@@ -42,13 +42,13 @@ public static class IQueryablesExtension
         typeof(string).GetMethod(nameof(string.Contains), new[] { typeof(string) })!;
 
     /// <summary>
-    /// Executes the where dynamic equals operation.
+    /// Adds an equality predicate for a property selected by name.
     /// </summary>
-    /// <typeparam name="T">The T type.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="field">The field.</param>
-    /// <param name="value">The value.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <typeparam name="T">The sequence element or result type.</typeparam>
+    /// <param name="source">The source sequence or query.</param>
+    /// <param name="field">The property name used to build the expression.</param>
+    /// <param name="value">The value the selected property must equal.</param>
+    /// <returns>The query with the equality predicate applied.</returns>
     [Pure]
     public static IQueryable<T> WhereDynamicEquals<T>(this IQueryable<T> source, string field, object? value)
     {
@@ -58,12 +58,12 @@ public static class IQueryablesExtension
     }
 
     /// <summary>
-    /// Executes the where dynamic range operation.
+    /// Adds the lower and upper bounds represented by a dynamic range filter.
     /// </summary>
-    /// <typeparam name="T">The T type.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="range">The range.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <typeparam name="T">The sequence element or result type.</typeparam>
+    /// <param name="source">The source sequence or query.</param>
+    /// <param name="range">The range definition, including its optional bounds.</param>
+    /// <returns>The query with applicable range bounds applied.</returns>
     [Pure]
     public static IQueryable<T> WhereDynamicRange<T>(this IQueryable<T> source, RangeFilter range)
     {
@@ -73,13 +73,13 @@ public static class IQueryablesExtension
     }
 
     /// <summary>
-    /// Executes the where dynamic search operation.
+    /// Adds a text-search predicate across the requested property names.
     /// </summary>
-    /// <typeparam name="T">The T type.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="search">The search.</param>
-    /// <param name="fields">The fields.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <typeparam name="T">The sequence element or result type.</typeparam>
+    /// <param name="source">The source sequence or query.</param>
+    /// <param name="search">The text to search for.</param>
+    /// <param name="fields">The property names included in the search.</param>
+    /// <returns>The query with the search predicate applied.</returns>
     [Pure]
     public static IQueryable<T> WhereDynamicSearch<T>(this IQueryable<T> source, string search, List<string> fields)
     {
@@ -92,13 +92,13 @@ public static class IQueryablesExtension
     }
 
     /// <summary>
-    /// Executes the order by dynamic operation.
+    /// Orders a query by a property selected at runtime.
     /// </summary>
-    /// <typeparam name="T">The T type.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="field">The field.</param>
-    /// <param name="descending">The descending.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <typeparam name="T">The sequence element or result type.</typeparam>
+    /// <param name="source">The source sequence or query.</param>
+    /// <param name="field">The property name used to build the expression.</param>
+    /// <param name="descending">True for descending order; false for ascending order.</param>
+    /// <returns>The ordered query.</returns>
     [Pure]
     public static IOrderedQueryable<T> OrderByDynamic<T>(this IQueryable<T> source, string field, bool descending)
     {
@@ -112,13 +112,13 @@ public static class IQueryablesExtension
     }
 
     /// <summary>
-    /// Executes the then by dynamic operation.
+    /// Adds a secondary ordering by a property selected at runtime.
     /// </summary>
-    /// <typeparam name="T">The T type.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="field">The field.</param>
-    /// <param name="descending">The descending.</param>
-    /// <returns>The result of the operation.</returns>
+    /// <typeparam name="T">The sequence element or result type.</typeparam>
+    /// <param name="source">The source sequence or query.</param>
+    /// <param name="field">The property name used to build the expression.</param>
+    /// <param name="descending">True for descending order; false for ascending order.</param>
+    /// <returns>The query with secondary ordering applied.</returns>
     [Pure]
     public static IOrderedQueryable<T> ThenByDynamic<T>(this IOrderedQueryable<T> source, string field, bool descending)
     {
@@ -132,6 +132,7 @@ public static class IQueryablesExtension
     }
 
     /// <summary> Applies filters, search, ordering, paging in one go. </summary>
+    /// <returns>Applies filters, search, ordering, paging in one go.</returns>
     [Pure]
     public static IQueryable<T> AddRequestDataOptions<T>(this IQueryable<T> query, RequestDataOptions opts)
     {
