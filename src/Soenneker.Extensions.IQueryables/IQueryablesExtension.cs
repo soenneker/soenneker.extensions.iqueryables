@@ -16,13 +16,10 @@ using System.Text.Json.Serialization;
 
 namespace Soenneker.Extensions.IQueryables;
 
-/// <summary>
-/// A collection of helpful IQueryable extension methods
-/// </summary>
 // ReSharper disable once UnusedType.Global
 // ReSharper disable once InconsistentNaming
 /// <summary>
-/// Represents the i queryables extension.
+/// Builds deferred filtering, search, and ordering expressions from runtime field names.
 /// </summary>
 public static class IQueryablesExtension
 {
@@ -131,8 +128,8 @@ public static class IQueryablesExtension
         return (IOrderedQueryable<T>)source.Provider.CreateQuery(call);
     }
 
-    /// <summary> Applies filters, search, ordering, paging in one go. </summary>
-    /// <returns>Applies filters, search, ordering, paging in one go.</returns>
+    /// <summary>Applies exact filters, range filters, search, and ordering in one operation.</summary>
+    /// <returns>The composed query. Pagination-related request options are not applied.</returns>
     [Pure]
     public static IQueryable<T> AddRequestDataOptions<T>(this IQueryable<T> query, RequestDataOptions opts)
     {
@@ -202,6 +199,9 @@ public static class IQueryablesExtension
         Expression rhs;
         if (value is null)
         {
+            if (member.Type.IsValueType && Nullable.GetUnderlyingType(member.Type) is null)
+                return Expression.Constant(false);
+
             // Ensure constant carries the member type for provider translation
             rhs = Expression.Constant(null, member.Type);
         }
@@ -265,8 +265,10 @@ public static class IQueryablesExtension
             if (member.Type != typeof(string))
                 continue;
 
-            MethodCallExpression call = Expression.Call(member, _stringContains, searchConst);
-            body = body is null ? call : Expression.OrElse(body, call);
+            BinaryExpression hasValue = Expression.NotEqual(member, Expression.Constant(null, typeof(string)));
+            MethodCallExpression contains = Expression.Call(member, _stringContains, searchConst);
+            BinaryExpression candidate = Expression.AndAlso(hasValue, contains);
+            body = body is null ? candidate : Expression.OrElse(body, candidate);
         }
 
         return body;
