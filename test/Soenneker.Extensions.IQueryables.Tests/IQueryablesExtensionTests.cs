@@ -8,7 +8,7 @@ namespace Soenneker.Extensions.IQueryables.Tests;
 public sealed class IQueryablesExtensionTests : UnitTest
 {
     [Test]
-    public async System.Threading.Tasks.Task Search_skips_null_string_values()
+    public async System.Threading.Tasks.ValueTask Search_skips_null_string_values()
     {
         var values = new List<Item>
         {
@@ -22,7 +22,7 @@ public sealed class IQueryablesExtensionTests : UnitTest
     }
 
     [Test]
-    public async System.Threading.Tasks.Task Null_never_matches_a_non_nullable_property()
+    public async System.Threading.Tasks.ValueTask Null_never_matches_a_non_nullable_property()
     {
         var values = new List<Item> {new() {Count = 1}}.AsQueryable();
 
