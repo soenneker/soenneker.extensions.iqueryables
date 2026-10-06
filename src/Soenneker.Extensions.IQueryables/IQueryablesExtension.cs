@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Soenneker.Dtos.Filters.ExactMatch;
 using Soenneker.Dtos.Filters.Range;
 using Soenneker.Dtos.Options.OrderBy;
@@ -30,10 +31,10 @@ public static class IQueryablesExtension
     /// <summary> Type → (segment → PropertyInfo), case-insensitive, includes CLR names and [JsonPropertyName]. </summary>
     private static readonly ConcurrentDictionary<Type, Dictionary<string, PropertyInfo>> _propertyMapCache = new();
 
-    private static readonly MethodInfo _miOrderBy = GetQueryableMethod(nameof(Queryable.OrderBy));
-    private static readonly MethodInfo _miOrderByDesc = GetQueryableMethod(nameof(Queryable.OrderByDescending));
-    private static readonly MethodInfo _miThenBy = GetQueryableMethod(nameof(Queryable.ThenBy));
-    private static readonly MethodInfo _miThenByDesc = GetQueryableMethod(nameof(Queryable.ThenByDescending));
+    private static readonly MethodInfo _miOrderBy = ((Func<IQueryable<int>, Expression<Func<int, int>>, IOrderedQueryable<int>>)Queryable.OrderBy<int, int>).Method.GetGenericMethodDefinition();
+    private static readonly MethodInfo _miOrderByDesc = ((Func<IQueryable<int>, Expression<Func<int, int>>, IOrderedQueryable<int>>)Queryable.OrderByDescending<int, int>).Method.GetGenericMethodDefinition();
+    private static readonly MethodInfo _miThenBy = ((Func<IOrderedQueryable<int>, Expression<Func<int, int>>, IOrderedQueryable<int>>)Queryable.ThenBy<int, int>).Method.GetGenericMethodDefinition();
+    private static readonly MethodInfo _miThenByDesc = ((Func<IOrderedQueryable<int>, Expression<Func<int, int>>, IOrderedQueryable<int>>)Queryable.ThenByDescending<int, int>).Method.GetGenericMethodDefinition();
 
     private static readonly MethodInfo _stringContains =
         typeof(string).GetMethod(nameof(string.Contains), new[] { typeof(string) })!;
@@ -47,6 +48,7 @@ public static class IQueryablesExtension
     /// <param name="value">The value the selected property must equal.</param>
     /// <returns>The query with the equality predicate applied.</returns>
     [Pure]
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     public static IQueryable<T> WhereDynamicEquals<T>(this IQueryable<T> source, string field, object? value)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -62,6 +64,7 @@ public static class IQueryablesExtension
     /// <param name="range">The range definition, including its optional bounds.</param>
     /// <returns>The query with applicable range bounds applied.</returns>
     [Pure]
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     public static IQueryable<T> WhereDynamicRange<T>(this IQueryable<T> source, RangeFilter range)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -78,6 +81,7 @@ public static class IQueryablesExtension
     /// <param name="fields">The property names included in the search.</param>
     /// <returns>The query with the search predicate applied.</returns>
     [Pure]
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     public static IQueryable<T> WhereDynamicSearch<T>(this IQueryable<T> source, string search, List<string> fields)
     {
         if (search.IsNullOrWhiteSpace() || fields.Count == 0)
@@ -97,6 +101,8 @@ public static class IQueryablesExtension
     /// <param name="descending">True for descending order; false for ascending order.</param>
     /// <returns>The ordered query.</returns>
     [Pure]
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
+    [RequiresDynamicCode("Runtime sorting closes generic methods. Use typed QueryField registrations for Native AOT.")]
     public static IOrderedQueryable<T> OrderByDynamic<T>(this IQueryable<T> source, string field, bool descending)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -117,6 +123,8 @@ public static class IQueryablesExtension
     /// <param name="descending">True for descending order; false for ascending order.</param>
     /// <returns>The query with secondary ordering applied.</returns>
     [Pure]
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
+    [RequiresDynamicCode("Runtime sorting closes generic methods. Use typed QueryField registrations for Native AOT.")]
     public static IOrderedQueryable<T> ThenByDynamic<T>(this IOrderedQueryable<T> source, string field, bool descending)
     {
         ParameterExpression param = Expression.Parameter(typeof(T), "x");
@@ -131,6 +139,8 @@ public static class IQueryablesExtension
     /// <summary>Applies exact filters, range filters, search, and ordering in one operation.</summary>
     /// <returns>The composed query. Pagination-related request options are not applied.</returns>
     [Pure]
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
+    [RequiresDynamicCode("Runtime sorting closes generic methods. Use typed QueryField registrations for Native AOT.")]
     public static IQueryable<T> AddRequestDataOptions<T>(this IQueryable<T> query, RequestDataOptions opts)
     {
         // BIG WIN: build a single predicate and apply one Where() instead of N Where() calls.
@@ -192,6 +202,7 @@ public static class IQueryablesExtension
         return query;
     }
 
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     private static Expression BuildEqualsBody<T>(ParameterExpression param, string field, object? value)
     {
         MemberExpression member = BuildMemberAccess<T>(param, field);
@@ -218,6 +229,7 @@ public static class IQueryablesExtension
         return Expression.Equal(member, rhs);
     }
 
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     private static Expression? BuildRangeBody<T>(ParameterExpression param, RangeFilter range)
     {
         MemberExpression member = BuildMemberAccess<T>(param, range.Field);
@@ -245,6 +257,7 @@ public static class IQueryablesExtension
         }
     }
 
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     private static Expression? BuildSearchBody<T>(ParameterExpression param, string search, List<string> fields)
     {
         if (search.IsNullOrWhiteSpace() || fields.Count == 0)
@@ -275,6 +288,7 @@ public static class IQueryablesExtension
     }
 
     /// <summary> Resolve property chain for path like "A.B.C". Uses per-type property map cache. </summary>
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     private static MemberExpression BuildMemberAccess<T>(ParameterExpression root, string path)
     {
         ValidateFieldPath(path);
@@ -295,6 +309,7 @@ public static class IQueryablesExtension
         return (MemberExpression)expr;
     }
 
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     private static PropertyInfo[] ResolvePropertyChain(Type current, string remaining)
     {
         // Avoid LINQ; small list size expected
@@ -325,6 +340,7 @@ public static class IQueryablesExtension
     }
 
     /// <summary> Resolve ONE path segment on <paramref name="type"/> using the cached property map. </summary>
+    [RequiresUnreferencedCode("Runtime field paths require properties on every path segment. Use typed predicates when trimming.")]
     private static PropertyInfo? FindSegmentProperty(Type type, string seg)
     {
         Dictionary<string, PropertyInfo> map = _propertyMapCache.GetOrAdd(type, static t =>
@@ -376,31 +392,6 @@ public static class IQueryablesExtension
     }
 
     private static Type GetNonNullableType(Type t) => Nullable.GetUnderlyingType(t) ?? t;
-
-    private static MethodInfo GetQueryableMethod(string name)
-    {
-        // Find Queryable.{name}<TSource,TKey>(IQueryable<TSource>, Expression<Func<TSource,TKey>>)
-        MethodInfo[] methods = typeof(Queryable).GetMethods(BindingFlags.Public | BindingFlags.Static);
-
-        for (int i = 0; i < methods.Length; i++)
-        {
-            MethodInfo m = methods[i];
-            if (!string.Equals(m.Name, name, StringComparison.Ordinal))
-                continue;
-
-            ParameterInfo[] ps = m.GetParameters();
-            if (ps.Length != 2)
-                continue;
-
-            if (!m.IsGenericMethodDefinition)
-                continue;
-
-            // good enough discriminator for these four methods
-            return m;
-        }
-
-        throw new InvalidOperationException($"Could not locate Queryable.{name} method.");
-    }
 
     /// <summary>
     /// Coerces a value to a target type when it differs (e.g., string -> int/DateTime), but
