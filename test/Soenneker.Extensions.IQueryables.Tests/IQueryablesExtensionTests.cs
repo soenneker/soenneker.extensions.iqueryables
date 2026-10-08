@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Soenneker.Tests.Unit;
+using System.Threading;
 
 namespace Soenneker.Extensions.IQueryables.Tests;
 
@@ -8,7 +9,7 @@ namespace Soenneker.Extensions.IQueryables.Tests;
 public sealed class IQueryablesExtensionTests : UnitTest
 {
     [Test]
-    public async System.Threading.Tasks.ValueTask Search_skips_null_string_values()
+    public async System.Threading.Tasks.ValueTask Search_skips_null_string_values(CancellationToken cancellationToken)
     {
         var values = new List<Item>
         {
@@ -22,7 +23,7 @@ public sealed class IQueryablesExtensionTests : UnitTest
     }
 
     [Test]
-    public async System.Threading.Tasks.ValueTask Null_never_matches_a_non_nullable_property()
+    public async System.Threading.Tasks.ValueTask Null_never_matches_a_non_nullable_property(CancellationToken cancellationToken)
     {
         var values = new List<Item> {new() {Count = 1}}.AsQueryable();
 
